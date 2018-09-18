@@ -16,7 +16,7 @@
 
 """Runs two benchmark programs and compares their results."""
 
-
+from __future__ import print_function
 
 import argparse
 import subprocess
