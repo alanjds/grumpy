@@ -94,7 +94,7 @@ def main(stream=None, modname=None, pep3147=False, clean_tempfolder=True):
     script_name = os.path.join(pep3147_folders['cache_folder'], os.path.basename(script))
     with open(script_name, 'wb') as script_file:
       stream.seek(0)
-      script_file.write(stream.read())
+      script_file.write(stream.read().encode())
 
     py_dir = os.path.join(workdir, 'src', '__python__')
 
