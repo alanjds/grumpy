@@ -5,9 +5,12 @@ to a token, combining these ranges, extracting human-readable
 location information and original source from a range.
 """
 
-
+from __future__ import absolute_import, division, print_function, unicode_literals
 import bisect
-import re
+try:
+    import regex as re
+except ImportError:
+    import re
 
 class Buffer:
     """

@@ -1,6 +1,9 @@
-
+from __future__ import absolute_import, division, print_function, unicode_literals
 import sys
-from . import source as pythonparser_source, lexer as pythonparser_lexer, parser as pythonparser_parser, diagnostic as pythonparser_diagnostic
+from . import source as pythonparser_source
+from . import lexer as pythonparser_lexer
+from . import parser as pythonparser_parser
+from . import diagnostic as pythonparser_diagnostic
 
 def parse_buffer(buffer, mode="exec", flags=[], version=None, engine=None):
     """
@@ -58,4 +61,3 @@ def parse(source, filename="<unknown>", mode="exec",
     ast, comments = parse_buffer(pythonparser_source.Buffer(source, filename),
                                  mode, flags, version, engine)
     return ast
-

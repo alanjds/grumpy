@@ -4,7 +4,7 @@
 The :mod:`parser` module concerns itself with parsing Python source.
 """
 
-
+from __future__ import absolute_import, division, print_function, unicode_literals
 from functools import reduce
 from . import source, diagnostic, lexer, ast
 
@@ -189,7 +189,7 @@ def Alt(*inner_rules, **kwargs):
     value of that rule, or None if no rules were satisfied.
     """
     loc = kwargs.get("loc", None)
-    expected = lambda parser: reduce(list.__add__, [x.expected(parser) for x in inner_rules])
+    expected = lambda parser: reduce(list.__add__, map(lambda x: x.expected(parser), inner_rules))
     if loc is not None:
         @llrule(loc, expected, cases=len(inner_rules))
         def rule(parser):
@@ -314,7 +314,7 @@ def Oper(klass, *kinds, **kwargs):
     an instance of ``klass`` with ``loc`` encompassing the entire sequence
     or None if the first token is not of ``kinds[0]``.
     """
-    @action(Seq(*list(map(Loc, kinds))), loc=kwargs.get("loc", None))
+    @action(Seq(*map(Loc, kinds)), loc=kwargs.get("loc", None))
     def rule(parser, *tokens):
         return klass(loc=tokens[0].join(tokens[-1]))
     return rule
@@ -419,7 +419,7 @@ class Parser:
             self.expr_stmt_1     = self.expr_stmt_1__26
             self.yield_expr      = self.yield_expr__26
             return
-        elif version in ((3, 0), (3, 1), (3, 2), (3, 3), (3, 4), (3, 5)):
+        elif version in ((3, 0), (3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6)):
             if version == (3, 0):
                 self.with_stmt       = self.with_stmt__26 # lol
             else:
@@ -577,8 +577,8 @@ class Parser:
     @action(Seq(Rule("decorators"), Alt(Rule("classdef"), Rule("funcdef"))))
     def decorated(self, decorators, classfuncdef):
         """decorated: decorators (classdef | funcdef)"""
-        classfuncdef.at_locs = list([x[0] for x in decorators])
-        classfuncdef.decorator_list = list([x[1] for x in decorators])
+        classfuncdef.at_locs = list(map(lambda x: x[0], decorators))
+        classfuncdef.decorator_list = list(map(lambda x: x[1], decorators))
         classfuncdef.loc = classfuncdef.loc.join(decorators[0][0])
         return classfuncdef
 
@@ -844,8 +844,8 @@ class Parser:
     @action(Star(Seq(Loc("="), Alt(Rule("yield_expr"), Rule("expr_stmt_1")))))
     def expr_stmt_3(self, seq):
         if len(seq) > 0:
-            return ast.Assign(targets=list([x[1] for x in seq[:-1]]), value=seq[-1][1],
-                              op_locs=list([x[0] for x in seq]))
+            return ast.Assign(targets=list(map(lambda x: x[1], seq[:-1])), value=seq[-1][1],
+                              op_locs=list(map(lambda x: x[0], seq)))
         else:
             return None
 
@@ -1035,15 +1035,11 @@ class Parser:
                           name_loc=star_loc, as_loc=None, asname_loc=None, loc=star_loc)], \
                None
 
-    @action(Rule("atom_5"))
-    def import_from_7(self, string):
-        return (None, 0), (string.loc, string.s)
-
     @action(Rule("import_as_names"))
     def import_from_6(self, names):
         return (None, 0), names, None
 
-    @action(Seq(Loc("from"), Alt(import_from_3, import_from_4, import_from_7),
+    @action(Seq(Loc("from"), Alt(import_from_3, import_from_4),
                 Loc("import"), Alt(import_from_5,
                                    Seq(Loc("("), Rule("import_as_names"), Loc(")")),
                                    import_from_6)))
@@ -1101,35 +1097,23 @@ class Parser:
         return ast.alias(name=dotted_name_name, asname=asname_name,
                          loc=loc, name_loc=dotted_name_loc, as_loc=as_loc, asname_loc=asname_loc)
 
-    @action(Seq(Rule("atom_5"), Opt(Seq(Loc("as"), Tok("ident")))))
-    def str_as_name(self, string, as_name_opt):
-        asname_name = asname_loc = as_loc = None
-        loc = string.loc
-        if as_name_opt:
-            as_loc, asname = as_name_opt
-            asname_name = asname.value
-            asname_loc = asname.loc
-            loc = loc.join(asname.loc)
-        return ast.alias(name=string.s, asname=asname_name,
-                         loc=loc, name_loc=string.loc, as_loc=as_loc, asname_loc=asname_loc)
-
     import_as_names = List(Rule("import_as_name"), ",", trailing=True)
     """import_as_names: import_as_name (',' import_as_name)* [',']"""
 
-    dotted_as_names = List(Alt(Rule("dotted_as_name"), Rule("str_as_name")), ",", trailing=False)
+    dotted_as_names = List(Rule("dotted_as_name"), ",", trailing=False)
     """dotted_as_names: dotted_as_name (',' dotted_as_name)*"""
 
     @action(List(Tok("ident"), ".", trailing=False))
     def dotted_name(self, idents):
         """dotted_name: NAME ('.' NAME)*"""
         return idents[0].loc.join(idents[-1].loc), \
-               ".".join(list([x.value for x in idents]))
+               ".".join(list(map(lambda x: x.value, idents)))
 
     @action(Seq(Loc("global"), List(Tok("ident"), ",", trailing=False)))
     def global_stmt(self, global_loc, names):
         """global_stmt: 'global' NAME (',' NAME)*"""
-        return ast.Global(names=list([x.value for x in names]),
-                          name_locs=list([x.loc for x in names]),
+        return ast.Global(names=list(map(lambda x: x.value, names)),
+                          name_locs=list(map(lambda x: x.loc, names)),
                           keyword_loc=global_loc, loc=global_loc.join(names[-1].loc))
 
     @action(Seq(Loc("exec"), Rule("expr"),
@@ -1151,8 +1135,8 @@ class Parser:
     @action(Seq(Loc("nonlocal"), List(Tok("ident"), ",", trailing=False)))
     def nonlocal_stmt(self, nonlocal_loc, names):
         """(3.0-) nonlocal_stmt: 'nonlocal' NAME (',' NAME)*"""
-        return ast.Nonlocal(names=list([x.value for x in names]),
-                            name_locs=list([x.loc for x in names]),
+        return ast.Nonlocal(names=list(map(lambda x: x.value, names)),
+                            name_locs=list(map(lambda x: x.loc, names)),
                             keyword_loc=nonlocal_loc, loc=nonlocal_loc.join(names[-1].loc))
 
     @action(Seq(Loc("assert"), Rule("test"), Opt(SeqN(1, Tok(","), Rule("test")))))
@@ -1408,9 +1392,9 @@ class Parser:
         """or_test: and_test ('or' and_test)*"""
         if len(rhs) > 0:
             return ast.BoolOp(op=ast.Or(),
-                              values=[lhs] + list([x[1] for x in rhs]),
+                              values=[lhs] + list(map(lambda x: x[1], rhs)),
                               loc=lhs.loc.join(rhs[-1][1].loc),
-                              op_locs=list([x[0] for x in rhs]))
+                              op_locs=list(map(lambda x: x[0], rhs)))
         else:
             return lhs
 
@@ -1419,9 +1403,9 @@ class Parser:
         """and_test: not_test ('and' not_test)*"""
         if len(rhs) > 0:
             return ast.BoolOp(op=ast.And(),
-                              values=[lhs] + list([x[1] for x in rhs]),
+                              values=[lhs] + list(map(lambda x: x[1], rhs)),
                               loc=lhs.loc.join(rhs[-1][1].loc),
-                              op_locs=list([x[0] for x in rhs]))
+                              op_locs=list(map(lambda x: x[0], rhs)))
         else:
             return lhs
 
@@ -1445,8 +1429,8 @@ class Parser:
         (3.2-) comparison: expr (comp_op expr)*
         """
         if len(rhs) > 0:
-            return ast.Compare(left=lhs, ops=list([x[0] for x in rhs]),
-                               comparators=list([x[1] for x in rhs]),
+            return ast.Compare(left=lhs, ops=list(map(lambda x: x[0], rhs)),
+                               comparators=list(map(lambda x: x[1], rhs)),
                                loc=lhs.loc.join(rhs[-1][1].loc))
         else:
             return lhs
@@ -1528,7 +1512,7 @@ class Parser:
     def atom_2(self, tok):
         return ast.Name(id=tok.value, loc=tok.loc, ctx=None)
 
-    @action(Alt(Tok("int"), Tok("float"), Tok("complex")))
+    @action(Alt(Tok("int"), Tok("float"), Tok("complex"), Tok("long")))
     def atom_3(self, tok):
         return ast.Num(n=tok.value, loc=tok.loc)
 
@@ -1747,9 +1731,9 @@ class Parser:
     @action(List(Seq(Rule("test"), Loc(":"), Rule("test")), ",", trailing=True))
     def dictmaker(self, elts):
         """(2.6) dictmaker: test ':' test (',' test ':' test)* [',']"""
-        return ast.Dict(keys=list([x[0] for x in elts]),
-                        values=list([x[2] for x in elts]),
-                        colon_locs=list([x[1] for x in elts]),
+        return ast.Dict(keys=list(map(lambda x: x[0], elts)),
+                        values=list(map(lambda x: x[2], elts)),
+                        colon_locs=list(map(lambda x: x[1], elts)),
                         loc=None)
 
     dictorsetmaker_1 = Seq(Rule("test"), Loc(":"), Rule("test"))
@@ -1760,9 +1744,9 @@ class Parser:
     def dictorsetmaker_2(self, first, elts):
         if isinstance(elts, commalist):
             elts.insert(0, first)
-            return ast.Dict(keys=list([x[0] for x in elts]),
-                            values=list([x[2] for x in elts]),
-                            colon_locs=list([x[1] for x in elts]),
+            return ast.Dict(keys=list(map(lambda x: x[0], elts)),
+                            values=list(map(lambda x: x[2], elts)),
+                            colon_locs=list(map(lambda x: x[1], elts)),
                             loc=None)
         else:
             return ast.DictComp(key=first[0], value=first[2], generators=elts([]),
